@@ -58,6 +58,28 @@ static int amdgpu_vm_cpu_prepare(struct amdgpu_vm_update_params *p,
 	return amdgpu_sync_wait(sync, true);
 }
 
+static long amdgpu_vm_cpu_wait(struct amdgpu_vm_update_params *p,
+			       struct amdgpu_bo_vm *vmbo)
+{
+	struct dma_resv *resv = vmbo->bo.tbo.base.resv;
+	struct dma_resv_iter cursor;
+
+	if (!p->unlocked) {
+		/*
+		 * Page tables share the locked root reservation. The locked
+		 * iterator borrows its references and filters by usage without
+		 * polling unrelated fences. Check each batch afresh, since the
+		 * owner may add new dependencies between calls.
+		 */
+		dma_resv_iter_begin(&cursor, resv, DMA_RESV_USAGE_KERNEL);
+		if (!dma_resv_iter_first(&cursor))
+			return MAX_SCHEDULE_TIMEOUT;
+	}
+
+	return dma_resv_wait_timeout(resv, DMA_RESV_USAGE_KERNEL,
+				     true, MAX_SCHEDULE_TIMEOUT);
+}
+
 /**
  * amdgpu_vm_cpu_update - helper to update page tables via CPU
  *
@@ -80,8 +102,7 @@ static int amdgpu_vm_cpu_update(struct amdgpu_vm_update_params *p,
 	uint64_t value;
 	long r;
 
-	r = dma_resv_wait_timeout(vmbo->bo.tbo.base.resv, DMA_RESV_USAGE_KERNEL,
-				  true, MAX_SCHEDULE_TIMEOUT);
+	r = amdgpu_vm_cpu_wait(p, vmbo);
 	if (r < 0)
 		return r;
 
