@@ -1176,7 +1176,8 @@ int amdgpu_vm_update_range(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	struct amdgpu_vm_tlb_seq_struct *tlb_cb;
 	struct amdgpu_vm_update_params params;
 	struct amdgpu_res_cursor cursor;
-	int r, idx;
+	struct dma_fence *last_update = NULL;
+	int r, commit_r, idx;
 
 	if (!drm_dev_enter(adev_to_drm(adev), &idx))
 		return -ENODEV;
@@ -1186,6 +1187,8 @@ int amdgpu_vm_update_range(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 		drm_dev_exit(idx);
 		return -ENOMEM;
 	}
+	if (!fence)
+		fence = &last_update;
 
 	/* Vega20+XGMI where PTEs get inadvertently cached in L2 texture cache,
 	 * heavy-weight flush TLB unconditionally.
@@ -1275,14 +1278,17 @@ int amdgpu_vm_update_range(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 		tmp = start + num_entries;
 		r = amdgpu_vm_ptes_update(&params, start, tmp, addr, flags);
 		if (r)
-			goto error_free;
+			break;
 
 		amdgpu_res_next(&cursor, num_entries * AMDGPU_GPU_PAGE_SIZE);
 		start = tmp;
 	}
 
-	r = vm->update_funcs->commit(&params, fence);
-	if (r)
+	/* Finalize partial updates while preserving the first error. */
+	commit_r = vm->update_funcs->commit(&params, fence);
+	if (!r)
+		r = commit_r;
+	if (commit_r)
 		goto error_free;
 
 	if (params.needs_flush) {
@@ -1294,6 +1300,7 @@ int amdgpu_vm_update_range(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 
 error_free:
 	kfree(tlb_cb);
+	dma_fence_put(last_update);
 	amdgpu_vm_end_critical(&params);
 	drm_dev_exit(idx);
 	return r;
