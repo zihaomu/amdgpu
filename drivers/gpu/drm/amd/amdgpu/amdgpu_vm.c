@@ -1206,6 +1206,7 @@ int amdgpu_vm_update_range(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	params.vm = vm;
 	params.immediate = immediate;
 	params.pages_addr = pages_addr;
+	params.sync = sync;
 	params.unlocked = unlocked;
 	params.needs_flush = flush_tlb;
 	params.override_pte = allow_override && adev->gmc.override_pte;

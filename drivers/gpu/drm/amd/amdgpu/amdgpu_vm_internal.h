@@ -83,6 +83,11 @@ struct amdgpu_vm_update_params {
 	struct dma_fence *last_update;
 
 	/**
+	 * @sync: original dependencies to preserve across prepare calls
+	 */
+	struct amdgpu_sync *sync;
+
+	/**
 	 * @num_dw_left: number of dw left for the IB
 	 */
 	unsigned int num_dw_left;

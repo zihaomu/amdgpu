@@ -531,6 +531,11 @@ static int amdgpu_vm_pt_alloc(struct amdgpu_vm_update_params *p,
 	if (entry->bo)
 		return 0;
 
+	/* Allocation may introduce new move dependencies. End this phase. */
+	r = p->vm->update_funcs->commit(p, NULL);
+	if (r)
+		return r;
+
 	amdgpu_vm_end_critical(p);
 	r = amdgpu_vm_pt_create(p->adev, p->vm, cursor->level, p->immediate,
 				&pt, p->vm->root.bo->xcp_id);
@@ -556,7 +561,8 @@ static int amdgpu_vm_pt_alloc(struct amdgpu_vm_update_params *p,
 		return r;
 	}
 
-	return 0;
+	return p->vm->update_funcs->prepare(p, p->sync,
+					 AMDGPU_KERNEL_JOB_ID_VM_UPDATE_RANGE);
 
 error_unpin:
 	if (p->vm->is_npa)
