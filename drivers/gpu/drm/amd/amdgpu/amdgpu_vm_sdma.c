@@ -133,6 +133,8 @@ static int amdgpu_vm_sdma_commit(struct amdgpu_vm_update_params *p,
 	WARN_ON(ib->length_dw > p->num_dw_left);
 	f = amdgpu_job_submit(p->job);
 	p->job = NULL;
+	dma_fence_put(p->last_update);
+	p->last_update = dma_fence_get(f);
 
 	if (p->unlocked) {
 		struct dma_fence *tmp = dma_fence_get(f);

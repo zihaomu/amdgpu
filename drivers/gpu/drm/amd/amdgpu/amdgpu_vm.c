@@ -658,7 +658,9 @@ int amdgpu_vm_validate(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 		bo_base->moved = true;
 
 		if (vm->generation != new_vm_generation) {
-			r = amdgpu_vm_pt_clear(adev, vm, to_amdgpu_bo_vm(bo_base->bo), false);
+			r = amdgpu_vm_pt_clear(adev, vm,
+					       to_amdgpu_bo_vm(bo_base->bo),
+					       false, NULL);
 			if (r)
 				return r;
 		}
@@ -1081,6 +1083,7 @@ int amdgpu_vm_update_pdes(struct amdgpu_device *adev,
 		amdgpu_vm_bo_idle(entry);
 
 error:
+	dma_fence_put(params.last_update);
 	drm_dev_exit(idx);
 	return r;
 }
@@ -1286,7 +1289,7 @@ int amdgpu_vm_update_range(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 		goto error_free;
 
 	if (params.needs_flush) {
-		amdgpu_vm_tlb_flush(&params, *fence, tlb_cb);
+		amdgpu_vm_tlb_flush(&params, params.last_update, tlb_cb);
 		tlb_cb = NULL;
 	}
 
@@ -1294,6 +1297,7 @@ int amdgpu_vm_update_range(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 
 error_free:
 	kfree(tlb_cb);
+	dma_fence_put(params.last_update);
 	amdgpu_vm_end_critical(&params);
 	drm_dev_exit(idx);
 	return r;
@@ -2710,7 +2714,7 @@ int amdgpu_vm_init(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	if (r)
 		goto error_free_root;
 
-	r = amdgpu_vm_pt_clear(adev, vm, root, false);
+	r = amdgpu_vm_pt_clear(adev, vm, root, false, NULL);
 	if (r)
 		goto error_free_root;
 

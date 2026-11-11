@@ -353,6 +353,7 @@ static void amdgpu_vm_pt_next_dfs(struct amdgpu_device *adev,
  * @vm: VM to clear BO from
  * @vmbo: BO to clear
  * @immediate: use an immediate update
+ * @last_update: optional output for the internal clear completion fence
  *
  * Root PD needs to be reserved when calling this.
  *
@@ -360,7 +361,8 @@ static void amdgpu_vm_pt_next_dfs(struct amdgpu_device *adev,
  * 0 on success, errno otherwise.
  */
 int amdgpu_vm_pt_clear(struct amdgpu_device *adev, struct amdgpu_vm *vm,
-		       struct amdgpu_bo_vm *vmbo, bool immediate)
+		       struct amdgpu_bo_vm *vmbo, bool immediate,
+		       struct dma_fence **last_update)
 {
 	unsigned int level = adev->vm_manager.root_level;
 	struct ttm_operation_ctx ctx = { true, false };
@@ -390,11 +392,11 @@ int amdgpu_vm_pt_clear(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	if (!drm_dev_enter(adev_to_drm(adev), &idx))
 		return -ENODEV;
 
+	memset(&params, 0, sizeof(params));
 	r = vm->update_funcs->map_table(vmbo);
 	if (r)
 		goto exit;
 
-	memset(&params, 0, sizeof(params));
 	params.adev = adev;
 	params.vm = vm;
 	params.immediate = immediate;
@@ -429,6 +431,9 @@ int amdgpu_vm_pt_clear(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 
 	r = vm->update_funcs->commit(&params, &vm->last_update);
 exit:
+	if (last_update && params.last_update)
+		swap(*last_update, params.last_update);
+	dma_fence_put(params.last_update);
 	drm_dev_exit(idx);
 	return r;
 }
@@ -543,7 +548,8 @@ static int amdgpu_vm_pt_alloc(struct amdgpu_vm_update_params *p,
 	 */
 	pt_bo->parent = amdgpu_bo_ref(cursor->parent->bo);
 	amdgpu_vm_bo_base_init(entry, p->vm, pt_bo);
-	r = amdgpu_vm_pt_clear(p->adev, p->vm, pt, p->immediate);
+	r = amdgpu_vm_pt_clear(p->adev, p->vm, pt, p->immediate,
+			       &p->last_update);
 	if (r)
 		goto error_unpin;
 
