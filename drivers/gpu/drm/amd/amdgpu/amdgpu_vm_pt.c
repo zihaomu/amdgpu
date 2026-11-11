@@ -372,7 +372,7 @@ int amdgpu_vm_pt_clear(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	struct amdgpu_bo *bo = &vmbo->bo;
 	uint64_t value = 0, flags = 0;
 	uint64_t addr;
-	int r, idx;
+	int r, commit_r, idx;
 
 	/* Figure out our place in the hierarchy */
 	if (ancestor->parent) {
@@ -426,10 +426,9 @@ int amdgpu_vm_pt_clear(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 
 	r = vm->update_funcs->update(&params, vmbo, addr, 0, entries,
 				     value, flags);
-	if (r)
-		goto exit;
-
-	r = vm->update_funcs->commit(&params, &vm->last_update);
+	commit_r = vm->update_funcs->commit(&params, &vm->last_update);
+	if (!r)
+		r = commit_r;
 exit:
 	if (last_update && params.last_update)
 		swap(*last_update, params.last_update);
@@ -507,6 +506,8 @@ int amdgpu_vm_pt_create(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	return 0;
 }
 
+static void amdgpu_vm_pt_free(struct amdgpu_vm_bo_base *entry);
+
 /**
  * amdgpu_vm_pt_alloc - Allocate a specific page table
  *
@@ -550,8 +551,10 @@ static int amdgpu_vm_pt_alloc(struct amdgpu_vm_update_params *p,
 	amdgpu_vm_bo_base_init(entry, p->vm, pt_bo);
 	r = amdgpu_vm_pt_clear(p->adev, p->vm, pt, p->immediate,
 			       &p->last_update);
-	if (r)
-		goto error_unpin;
+	if (r) {
+		amdgpu_vm_pt_free(entry);
+		return r;
+	}
 
 	return 0;
 
