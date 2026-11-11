@@ -78,12 +78,10 @@ static int amdgpu_vm_cpu_update(struct amdgpu_vm_update_params *p,
 {
 	unsigned int i;
 	uint64_t value;
-	long r;
 
-	r = dma_resv_wait_timeout(vmbo->bo.tbo.base.resv, DMA_RESV_USAGE_KERNEL,
-				  true, MAX_SCHEDULE_TIMEOUT);
-	if (r < 0)
-		return r;
+	/* Page-table updates must not skip writes because of a signal. */
+	dma_resv_wait_timeout(vmbo->bo.tbo.base.resv, DMA_RESV_USAGE_KERNEL,
+			      false, MAX_SCHEDULE_TIMEOUT);
 
 	pe += (unsigned long)amdgpu_bo_kptr(&vmbo->bo);
 
