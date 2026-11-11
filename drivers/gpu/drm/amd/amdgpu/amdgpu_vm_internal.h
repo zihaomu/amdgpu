@@ -78,6 +78,16 @@ struct amdgpu_vm_update_params {
 	struct amdgpu_job *job;
 
 	/**
+	 * @fence: output for updates committed before page-table allocation
+	 */
+	struct dma_fence **fence;
+
+	/**
+	 * @sync: original dependencies to preserve when restarting an update
+	 */
+	struct amdgpu_sync *sync;
+
+	/**
 	 * @num_dw_left: number of dw left for the IB
 	 */
 	unsigned int num_dw_left;

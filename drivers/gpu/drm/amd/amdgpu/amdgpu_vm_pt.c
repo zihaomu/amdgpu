@@ -370,7 +370,7 @@ int amdgpu_vm_pt_clear(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	struct amdgpu_bo *bo = &vmbo->bo;
 	uint64_t value = 0, flags = 0;
 	uint64_t addr;
-	int r, idx;
+	int r, commit_r, idx;
 
 	/* Figure out our place in the hierarchy */
 	if (ancestor->parent) {
@@ -398,6 +398,7 @@ int amdgpu_vm_pt_clear(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	params.adev = adev;
 	params.vm = vm;
 	params.immediate = immediate;
+	params.fence = &vm->last_update;
 
 	r = vm->update_funcs->prepare(&params, NULL,
 				      AMDGPU_KERNEL_JOB_ID_VM_PT_CLEAR);
@@ -424,10 +425,9 @@ int amdgpu_vm_pt_clear(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 
 	r = vm->update_funcs->update(&params, vmbo, addr, 0, entries,
 				     value, flags);
-	if (r)
-		goto exit;
-
-	r = vm->update_funcs->commit(&params, &vm->last_update);
+	commit_r = vm->update_funcs->commit(&params, params.fence);
+	if (!r)
+		r = commit_r;
 exit:
 	drm_dev_exit(idx);
 	return r;
@@ -502,6 +502,8 @@ int amdgpu_vm_pt_create(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	return 0;
 }
 
+static void amdgpu_vm_pt_free(struct amdgpu_vm_bo_base *entry);
+
 /**
  * amdgpu_vm_pt_alloc - Allocate a specific page table
  *
@@ -525,6 +527,11 @@ static int amdgpu_vm_pt_alloc(struct amdgpu_vm_update_params *p,
 	if (entry->bo)
 		return 0;
 
+	/* Allocation may move page tables. Finish this update phase first. */
+	r = p->vm->update_funcs->commit(p, p->fence);
+	if (r)
+		return r;
+
 	amdgpu_vm_end_critical(p);
 	r = amdgpu_vm_pt_create(p->adev, p->vm, cursor->level, p->immediate,
 				&pt, p->vm->root.bo->xcp_id);
@@ -544,10 +551,14 @@ static int amdgpu_vm_pt_alloc(struct amdgpu_vm_update_params *p,
 	pt_bo->parent = amdgpu_bo_ref(cursor->parent->bo);
 	amdgpu_vm_bo_base_init(entry, p->vm, pt_bo);
 	r = amdgpu_vm_pt_clear(p->adev, p->vm, pt, p->immediate);
-	if (r)
-		goto error_unpin;
+	if (r) {
+		amdgpu_vm_pt_free(entry);
+		return r;
+	}
 
-	return 0;
+	/* Include dependencies introduced while the critical section was open. */
+	return p->vm->update_funcs->prepare(p, p->sync,
+					 AMDGPU_KERNEL_JOB_ID_VM_UPDATE_RANGE);
 
 error_unpin:
 	if (p->vm->is_npa)

@@ -257,7 +257,7 @@ static int amdgpu_vm_sdma_update(struct amdgpu_vm_update_params *p,
 		ndw -= p->job->ibs->length_dw;
 
 		if (ndw < 32) {
-			r = amdgpu_vm_sdma_commit(p, NULL);
+			r = amdgpu_vm_sdma_commit(p, p->fence);
 			if (r)
 				return r;
 

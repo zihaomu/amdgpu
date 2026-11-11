@@ -1040,7 +1040,7 @@ int amdgpu_vm_update_pdes(struct amdgpu_device *adev,
 	struct amdgpu_vm_update_params params;
 	struct amdgpu_vm_bo_base *entry, *tmp;
 	bool flush_tlb_needed = false;
-	int r, idx;
+	int r, commit_r, idx;
 
 	amdgpu_vm_assert_locked(vm);
 
@@ -1054,6 +1054,7 @@ int amdgpu_vm_update_pdes(struct amdgpu_device *adev,
 	params.adev = adev;
 	params.vm = vm;
 	params.immediate = immediate;
+	params.fence = &vm->last_update;
 
 	r = vm->update_funcs->prepare(&params, NULL,
 				      AMDGPU_KERNEL_JOB_ID_VM_UPDATE_PDES);
@@ -1066,15 +1067,19 @@ int amdgpu_vm_update_pdes(struct amdgpu_device *adev,
 
 		r = amdgpu_vm_pde_update(&params, entry);
 		if (r)
-			goto error;
+			break;
 	}
 
-	r = vm->update_funcs->commit(&params, &vm->last_update);
-	if (r)
+	commit_r = vm->update_funcs->commit(&params, params.fence);
+	if (!r)
+		r = commit_r;
+	if (commit_r)
 		goto error;
 
 	if (flush_tlb_needed)
 		atomic64_inc(&vm->tlb_seq);
+	if (r)
+		goto error;
 
 	list_for_each_entry_safe(entry, tmp, &vm->kernel.needs_update,
 				 vm_status)
@@ -1206,6 +1211,8 @@ int amdgpu_vm_update_range(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	params.vm = vm;
 	params.immediate = immediate;
 	params.pages_addr = pages_addr;
+	params.fence = fence;
+	params.sync = sync;
 	params.unlocked = unlocked;
 	params.needs_flush = flush_tlb;
 	params.override_pte = allow_override && adev->gmc.override_pte;
