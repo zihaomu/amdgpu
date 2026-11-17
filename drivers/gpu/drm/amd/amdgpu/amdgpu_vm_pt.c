@@ -399,8 +399,8 @@ int amdgpu_vm_pt_clear(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	params.vm = vm;
 	params.immediate = immediate;
 
-	r = vm->update_funcs->prepare(&params, NULL,
-				      AMDGPU_KERNEL_JOB_ID_VM_PT_CLEAR);
+	params.k_job_id = AMDGPU_KERNEL_JOB_ID_VM_PT_CLEAR;
+	r = vm->update_funcs->prepare(&params, NULL);
 	if (r)
 		goto exit;
 

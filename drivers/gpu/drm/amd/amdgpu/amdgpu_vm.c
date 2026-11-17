@@ -1055,8 +1055,8 @@ int amdgpu_vm_update_pdes(struct amdgpu_device *adev,
 	params.vm = vm;
 	params.immediate = immediate;
 
-	r = vm->update_funcs->prepare(&params, NULL,
-				      AMDGPU_KERNEL_JOB_ID_VM_UPDATE_PDES);
+	params.k_job_id = AMDGPU_KERNEL_JOB_ID_VM_UPDATE_PDES;
+	r = vm->update_funcs->prepare(&params, NULL);
 	if (r)
 		goto error;
 
@@ -1218,8 +1218,8 @@ int amdgpu_vm_update_range(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 		dma_fence_put(tmp);
 	}
 
-	r = vm->update_funcs->prepare(&params, sync,
-				      AMDGPU_KERNEL_JOB_ID_VM_UPDATE_RANGE);
+	params.k_job_id = AMDGPU_KERNEL_JOB_ID_VM_UPDATE_RANGE;
+	r = vm->update_funcs->prepare(&params, sync);
 	if (r)
 		goto error_free;
 

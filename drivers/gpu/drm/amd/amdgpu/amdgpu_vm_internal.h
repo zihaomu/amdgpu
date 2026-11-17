@@ -78,6 +78,11 @@ struct amdgpu_vm_update_params {
 	struct amdgpu_job *job;
 
 	/**
+	 * @k_job_id: original job identifier for every submission in this context
+	 */
+	u64 k_job_id;
+
+	/**
 	 * @num_dw_left: number of dw left for the IB
 	 */
 	unsigned int num_dw_left;
@@ -107,7 +112,7 @@ struct amdgpu_vm_update_params {
 struct amdgpu_vm_update_funcs {
 	int (*map_table)(struct amdgpu_bo_vm *bo);
 	int (*prepare)(struct amdgpu_vm_update_params *p,
-		       struct amdgpu_sync *sync, u64 k_job_id);
+		       struct amdgpu_sync *sync);
 	int (*update)(struct amdgpu_vm_update_params *p,
 		      struct amdgpu_bo_vm *bo, uint64_t pe, uint64_t addr,
 		      unsigned count, uint32_t incr, uint64_t flags);
