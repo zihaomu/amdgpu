@@ -502,6 +502,8 @@ int amdgpu_vm_pt_create(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	return 0;
 }
 
+static void amdgpu_vm_pt_free(struct amdgpu_vm_bo_base *entry);
+
 /**
  * amdgpu_vm_pt_alloc - Allocate a specific page table
  *
@@ -544,8 +546,11 @@ static int amdgpu_vm_pt_alloc(struct amdgpu_vm_update_params *p,
 	pt_bo->parent = amdgpu_bo_ref(cursor->parent->bo);
 	amdgpu_vm_bo_base_init(entry, p->vm, pt_bo);
 	r = amdgpu_vm_pt_clear(p->adev, p->vm, pt, p->immediate);
-	if (r)
-		goto error_unpin;
+	if (r) {
+		/* The entry points to the PT now, take it out again */
+		amdgpu_vm_pt_free(entry);
+		return r;
+	}
 
 	return 0;
 
