@@ -426,9 +426,6 @@ int amdgpu_vm_pt_clear(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 
 	r = vm->update_funcs->update(&params, vmbo, addr, 0, entries,
 				     value, flags);
-	if (r)
-		goto exit;
-
 	vm->update_funcs->commit(&params, &vm->last_update);
 exit:
 	if (last_update && params.last_update)
@@ -532,6 +529,9 @@ static int amdgpu_vm_pt_alloc(struct amdgpu_vm_update_params *p,
 	if (entry->bo)
 		return 0;
 
+	/* Allocation can add move dependencies while the lock is dropped. */
+	p->vm->update_funcs->commit(p, NULL);
+
 	amdgpu_vm_end_critical(p);
 	r = amdgpu_vm_pt_create(p->adev, p->vm, cursor->level, p->immediate,
 				&pt, p->vm->root.bo->xcp_id);
@@ -558,7 +558,7 @@ static int amdgpu_vm_pt_alloc(struct amdgpu_vm_update_params *p,
 		return r;
 	}
 
-	return 0;
+	return p->vm->update_funcs->prepare(p, p->sync);
 
 error_unpin:
 	if (p->vm->is_npa)
