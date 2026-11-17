@@ -50,10 +50,19 @@ static int amdgpu_vm_cpu_map_table(struct amdgpu_bo_vm *table)
 static int amdgpu_vm_cpu_prepare(struct amdgpu_vm_update_params *p,
 				 struct amdgpu_sync *sync)
 {
-	if (!sync)
-		return 0;
+	struct dma_resv *resv = p->vm->root.bo->tbo.base.resv;
+	int r;
 
-	return amdgpu_sync_wait(sync, true);
+	if (sync) {
+		r = amdgpu_sync_wait(sync, false);
+		if (r)
+			return r;
+	}
+
+	/* MMU-notifier unmaps must finish, including when a signal is pending. */
+	dma_resv_wait_timeout(resv, DMA_RESV_USAGE_KERNEL,
+			      false, MAX_SCHEDULE_TIMEOUT);
+	return 0;
 }
 
 /**
@@ -76,12 +85,6 @@ static int amdgpu_vm_cpu_update(struct amdgpu_vm_update_params *p,
 {
 	unsigned int i;
 	uint64_t value;
-	long r;
-
-	r = dma_resv_wait_timeout(vmbo->bo.tbo.base.resv, DMA_RESV_USAGE_KERNEL,
-				  true, MAX_SCHEDULE_TIMEOUT);
-	if (r < 0)
-		return r;
 
 	pe += (unsigned long)amdgpu_bo_kptr(&vmbo->bo);
 
