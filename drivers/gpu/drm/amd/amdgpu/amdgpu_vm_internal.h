@@ -83,6 +83,11 @@ struct amdgpu_vm_update_params {
 	u64 k_job_id;
 
 	/**
+	 * @last_update: owned reference to the last SDMA completion fence
+	 */
+	struct dma_fence *last_update;
+
+	/**
 	 * @num_dw_left: number of dw left for the IB
 	 */
 	unsigned int num_dw_left;
@@ -121,7 +126,8 @@ struct amdgpu_vm_update_funcs {
 };
 
 int amdgpu_vm_pt_clear(struct amdgpu_device *adev, struct amdgpu_vm *vm,
-		       struct amdgpu_bo_vm *vmbo, bool immediate);
+		       struct amdgpu_bo_vm *vmbo, bool immediate,
+		       struct dma_fence **last_update);
 int amdgpu_vm_pt_create(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 			int level, bool immediate, struct amdgpu_bo_vm **vmbo,
 			int32_t xcp_id);
