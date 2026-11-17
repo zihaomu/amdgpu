@@ -1069,9 +1069,7 @@ int amdgpu_vm_update_pdes(struct amdgpu_device *adev,
 			goto error;
 	}
 
-	r = vm->update_funcs->commit(&params, &vm->last_update);
-	if (r)
-		goto error;
+	vm->update_funcs->commit(&params, &vm->last_update);
 
 	if (flush_tlb_needed)
 		atomic64_inc(&vm->tlb_seq);
@@ -1281,9 +1279,7 @@ int amdgpu_vm_update_range(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 		start = tmp;
 	}
 
-	r = vm->update_funcs->commit(&params, fence);
-	if (r)
-		goto error_free;
+	vm->update_funcs->commit(&params, fence);
 
 	if (params.needs_flush) {
 		amdgpu_vm_tlb_flush(&params, *fence, tlb_cb);
