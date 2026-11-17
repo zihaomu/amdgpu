@@ -41,7 +41,7 @@ static int amdgpu_vm_sdma_map_table(struct amdgpu_bo_vm *table)
 
 /* Allocate a new job for @count PTE updates */
 static int amdgpu_vm_sdma_alloc_job(struct amdgpu_vm_update_params *p,
-				    unsigned int count, u64 k_job_id)
+				    unsigned int count)
 {
 	enum amdgpu_ib_pool_type pool = p->immediate ? AMDGPU_IB_POOL_IMMEDIATE
 		: AMDGPU_IB_POOL_DELAYED;
@@ -57,7 +57,7 @@ static int amdgpu_vm_sdma_alloc_job(struct amdgpu_vm_update_params *p,
 	ndw = min(ndw, AMDGPU_VM_SDMA_MAX_NUM_DW);
 
 	r = amdgpu_job_alloc_with_ib(p->adev, entity, AMDGPU_FENCE_OWNER_VM,
-				     ndw * 4, pool, k_job_id, &p->job);
+				     ndw * 4, pool, p->k_job_id, &p->job);
 	if (r)
 		return r;
 
@@ -70,17 +70,16 @@ static int amdgpu_vm_sdma_alloc_job(struct amdgpu_vm_update_params *p,
  *
  * @p: see amdgpu_vm_update_params definition
  * @sync: amdgpu_sync object with fences to wait for
- * @k_job_id: identifier of the job, for tracing purpose
  *
  * Returns:
  * Negativ errno, 0 for success.
  */
 static int amdgpu_vm_sdma_prepare(struct amdgpu_vm_update_params *p,
-				  struct amdgpu_sync *sync, u64 k_job_id)
+				  struct amdgpu_sync *sync)
 {
 	int r;
 
-	r = amdgpu_vm_sdma_alloc_job(p, 0, k_job_id);
+	r = amdgpu_vm_sdma_alloc_job(p, 0);
 	if (r)
 		return r;
 
@@ -256,8 +255,7 @@ static int amdgpu_vm_sdma_update(struct amdgpu_vm_update_params *p,
 		if (ndw < 32) {
 			amdgpu_vm_sdma_commit(p, NULL);
 
-			r = amdgpu_vm_sdma_alloc_job(p, count,
-						     AMDGPU_KERNEL_JOB_ID_VM_UPDATE);
+			r = amdgpu_vm_sdma_alloc_job(p, count);
 			if (r)
 				return r;
 
